@@ -5,6 +5,7 @@ export default function PreviewArea({
   sprites,
   selectedSpriteId,
   onSelectSprite,
+  onUpdateSpritePosition,
   onAddSprite,
   isPlaying,
   onPlay,
@@ -12,6 +13,38 @@ export default function PreviewArea({
 }) {
   const stageWidth = 480;
   const stageHeight = 360;
+
+  const [dragState, setDragState] = React.useState(null);
+
+  const handleStagePointerMove = (event) => {
+    if (!dragState || !onUpdateSpritePosition) return;
+
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const centerX = bounds.left + bounds.width / 2;
+    const centerY = bounds.top + bounds.height / 2;
+
+    const pointerX = event.clientX;
+    const pointerY = event.clientY;
+
+    const dx = pointerX - centerX;
+    const dy = pointerY - centerY;
+
+    onUpdateSpritePosition(dragState.spriteId, dx, -dy);
+  };
+
+  const handleStagePointerUp = () => {
+    if (!dragState) return;
+    setDragState(null);
+  };
+
+  const makeSpritePointerDown = (spriteId) => (event) => {
+    if (!onUpdateSpritePosition) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    setDragState({ spriteId });
+  };
 
   return (
     <div className="flex-none h-full overflow-y-auto p-2 flex flex-col w-full">
@@ -43,6 +76,11 @@ export default function PreviewArea({
         <div
           className="relative bg-blue-50 border border-gray-300 rounded overflow-hidden"
           style={{ width: stageWidth, height: stageHeight }}
+          onMouseMove={handleStagePointerMove}
+          onMouseUp={handleStagePointerUp}
+          onMouseLeave={handleStagePointerUp}
+          onTouchMove={handleStagePointerMove}
+          onTouchEnd={handleStagePointerUp}
         >
           {sprites.map((sprite) => (
             <div
@@ -56,6 +94,8 @@ export default function PreviewArea({
                 )}px) translate(-50%, -50%)`,
               }}
               onClick={() => onSelectSprite(sprite.id)}
+              onMouseDown={makeSpritePointerDown(sprite.id)}
+              onTouchStart={makeSpritePointerDown(sprite.id)}
             >
               <div
                 className="transition-transform duration-150"

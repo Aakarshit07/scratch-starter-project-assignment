@@ -5,6 +5,7 @@ export default function MidArea({
   onUpdateBlockArgs,
   onAddBlock,
   onRemoveBlock,
+  onReorderBlock,
 }) {
   const handleChangeArgs = (blockId, argsUpdate) => {
     if (!onUpdateBlockArgs) return;
@@ -16,11 +17,41 @@ export default function MidArea({
     onRemoveBlock(blockId);
   };
 
-  const handleDragOver = (event) => {
+  const handleBlockDragStart = (event, blockId) => {
+    if (!event.dataTransfer) return;
+    // Debug: track when block drag for reorder starts
+    // eslint-disable-next-line no-console
+    console.log("[MidArea] dragstart block", blockId);
+    event.dataTransfer.setData("application/x-block-reorder", blockId);
+    event.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleBlockDragOver = (event) => {
+    if (!event.dataTransfer) return;
     event.preventDefault();
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = "copy";
-    }
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "move";
+  };
+
+  const handleBlockDrop = (event, targetBlockId) => {
+    if (!event.dataTransfer || !onReorderBlock) return;
+    const sourceId = event.dataTransfer.getData("application/x-block-reorder");
+    if (!sourceId || sourceId === targetBlockId) return;
+    // Debug: track when reorder drop happens
+    // eslint-disable-next-line no-console
+    console.log("[MidArea] drop reorder", {
+      from: sourceId,
+      to: targetBlockId,
+    });
+    event.preventDefault();
+    event.stopPropagation();
+    onReorderBlock(sourceId, targetBlockId);
+  };
+
+  const handleDragOver = (event) => {
+    if (!event.dataTransfer) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
   };
 
   const handleDrop = (event) => {
@@ -49,12 +80,19 @@ export default function MidArea({
       ) : (
         <div className="space-y-2">
           {blocks.map((block) => (
-            <BlockEditor
+            <div
               key={block.id}
-              block={block}
-              onChangeArgs={(args) => handleChangeArgs(block.id, args)}
-              onRemove={() => handleRemove(block.id)}
-            />
+              draggable
+              onDragStart={(event) => handleBlockDragStart(event, block.id)}
+              onDragOver={handleBlockDragOver}
+              onDrop={(event) => handleBlockDrop(event, block.id)}
+            >
+              <BlockEditor
+                block={block}
+                onChangeArgs={(args) => handleChangeArgs(block.id, args)}
+                onRemove={() => handleRemove(block.id)}
+              />
+            </div>
           ))}
         </div>
       )}

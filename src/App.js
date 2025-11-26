@@ -24,7 +24,6 @@ export default function App() {
   const [selectedSpriteId, setSelectedSpriteId] = React.useState("sprite-1");
   const [isPlaying, setIsPlaying] = React.useState(false);
   const playRunIdRef = React.useRef(0);
-  const collisionSwappedPairsRef = React.useRef(new Set());
 
   const handleAddSprite = () => {
     setSprites((prev) => {
@@ -51,6 +50,28 @@ export default function App() {
 
   const handleSelectSprite = (id) => {
     setSelectedSpriteId(id);
+  };
+
+  const handleUpdateSpritePosition = (id, x, y) => {
+    setSprites((prev) =>
+      prev.map((sprite) =>
+        sprite.id === id
+          ? {
+              ...sprite,
+              x,
+              y,
+              initialX:
+                sprite.initialX !== undefined && sprite.initialX !== null
+                  ? sprite.initialX
+                  : x,
+              initialY:
+                sprite.initialY !== undefined && sprite.initialY !== null
+                  ? sprite.initialY
+                  : y,
+            }
+          : sprite
+      )
+    );
   };
 
   const restartRunWithSprites = (spritesSnapshot) => {
@@ -121,6 +142,49 @@ export default function App() {
     );
   };
 
+  const handleReorderBlockForSelectedSprite = (
+    sourceBlockId,
+    targetBlockId
+  ) => {
+    if (!selectedSpriteId) return;
+
+    setSprites((prev) =>
+      prev.map((sprite) => {
+        if (sprite.id !== selectedSpriteId) return sprite;
+
+        const blocks = sprite.blocks || [];
+        const sourceIndex = blocks.findIndex(
+          (block) => block.id === sourceBlockId
+        );
+        const targetIndex = blocks.findIndex(
+          (block) => block.id === targetBlockId
+        );
+
+        if (
+          sourceIndex === -1 ||
+          targetIndex === -1 ||
+          sourceIndex === targetIndex
+        ) {
+          return sprite;
+        }
+
+        // Debug: log reorder details
+        // eslint-disable-next-line no-console
+        console.log("[App] reorder blocks", {
+          spriteId: selectedSpriteId,
+          from: sourceBlockId,
+          to: targetBlockId,
+        });
+
+        const updatedBlocks = [...blocks];
+        const [moved] = updatedBlocks.splice(sourceIndex, 1);
+        updatedBlocks.splice(targetIndex, 0, moved);
+
+        return { ...sprite, blocks: updatedBlocks };
+      })
+    );
+  };
+
   const handleUpdateBlockArgs = (blockId, argsUpdate) => {
     if (!selectedSpriteId) return;
 
@@ -150,69 +214,11 @@ export default function App() {
     let direction = spriteOnStart.direction || 90;
 
     const applyPose = () => {
-      setSprites((prev) => {
-        const updated = prev.map((sprite) =>
+      setSprites((prev) =>
+        prev.map((sprite) =>
           sprite.id === spriteId ? { ...sprite, x, y, direction } : sprite
-        );
-
-        if (playRunIdRef.current !== runId) {
-          return updated;
-        }
-
-        const moving = updated.find((sprite) => sprite.id === spriteId);
-        if (!moving) return updated;
-
-        const radius = 80;
-        const thresholdSq = radius * radius;
-
-        for (let i = 0; i < updated.length; i += 1) {
-          const other = updated[i];
-          if (other.id === spriteId) continue;
-
-          const dx = (moving.x || 0) - (other.x || 0);
-          const dy = (moving.y || 0) - (other.y || 0);
-          const distSq = dx * dx + dy * dy;
-
-          if (distSq <= thresholdSq) {
-            const ids = [moving.id, other.id].sort();
-            const pairKey = `${ids[0]}|${ids[1]}`;
-
-            if (collisionSwappedPairsRef.current.has(pairKey)) {
-              break;
-            }
-
-            const indexA = updated.findIndex((sprite) => sprite.id === ids[0]);
-            const indexB = updated.findIndex((sprite) => sprite.id === ids[1]);
-
-            if (indexA === -1 || indexB === -1) {
-              break;
-            }
-
-            const blocksA = updated[indexA].blocks || [];
-            const blocksB = updated[indexB].blocks || [];
-
-            const swapped = updated.map((sprite, index) => {
-              if (index === indexA) {
-                return { ...sprite, blocks: blocksB };
-              }
-              if (index === indexB) {
-                return { ...sprite, blocks: blocksA };
-              }
-              return sprite;
-            });
-
-            collisionSwappedPairsRef.current.add(pairKey);
-
-            setTimeout(() => {
-              restartRunWithSprites(swapped);
-            }, 0);
-
-            return swapped;
-          }
-        }
-
-        return updated;
-      });
+        )
+      );
     };
 
     const setSay = (text) => {
@@ -343,7 +349,6 @@ export default function App() {
     const nextRunId = playRunIdRef.current + 1;
     playRunIdRef.current = nextRunId;
     setIsPlaying(true);
-    collisionSwappedPairsRef.current = new Set();
 
     const resetSprites = sprites.map((sprite) => ({
       ...sprite,
@@ -394,6 +399,7 @@ export default function App() {
             onUpdateBlockArgs={handleUpdateBlockArgs}
             onAddBlock={handleAddBlockToSelectedSprite}
             onRemoveBlock={handleRemoveBlockFromSelectedSprite}
+            onReorderBlock={handleReorderBlockForSelectedSprite}
           />
         </div>
         <div className="w-1/3 h-screen overflow-hidden flex flex-row bg-white border-t border-l border-gray-200 rounded-tl-xl ml-2">
@@ -401,6 +407,7 @@ export default function App() {
             sprites={sprites}
             selectedSpriteId={selectedSpriteId}
             onSelectSprite={handleSelectSprite}
+            onUpdateSpritePosition={handleUpdateSpritePosition}
             onAddSprite={handleAddSprite}
             isPlaying={isPlaying}
             onPlay={handlePlay}
